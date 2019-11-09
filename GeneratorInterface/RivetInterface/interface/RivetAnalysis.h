@@ -24,7 +24,7 @@ namespace Rivet {
 
     public:
       std::vector<DressedLepton> leptons() const {return _leptons;}
-      ParticleVector photons() const {return _photons;}
+      ParticleVector photons() const {return _photons;}      
       ParticleVector neutrinos() const {return _neutrinos;}
       Jets jets() const {return _jets;}
       Jets fatjets() const {return _fatjets;}
@@ -39,6 +39,7 @@ namespace Rivet {
       double _lepConeSize, _lepMinPt, _lepMaxEta;
       double _jetConeSize, _jetMinPt, _jetMaxEta;
       double _fatJetConeSize, _fatJetMinPt, _fatJetMaxEta;
+      double _phoMinPt, _phoMaxEta ,_phoIsoConeSize, _phoMaxRelIso;
       
       std::vector<DressedLepton> _leptons;
       ParticleVector _photons, _neutrinos;
@@ -64,7 +65,13 @@ namespace Rivet {
       
       _fatJetConeSize (pset.getParameter<double>("fatJetConeSize")),
       _fatJetMinPt    (pset.getParameter<double>("fatJetMinPt")),
-      _fatJetMaxEta   (pset.getParameter<double>("fatJetMaxEta"))
+      _fatJetMaxEta   (pset.getParameter<double>("fatJetMaxEta")),
+
+      _phoMinPt  (pset.getParameter<double>("phoMinPt")),
+      _phoMaxEta  (pset.getParameter<double>("phoMaxEta")),
+      _phoIsoConeSize  (pset.getParameter<double>("phoIsoConeSize")),
+      _phoMaxRelIso (pset.getParameter<double>("phoMaxRelIso"))
+
       {
       }
 
@@ -76,19 +83,24 @@ namespace Rivet {
         
         // Generic final state
         FinalState fs(particle_cut);
-        
+
+        addProjection(fs, "FS");
+
         // Dressed leptons
         ChargedLeptons charged_leptons(fs);
+
         IdentifiedFinalState photons(fs);
         photons.acceptIdPair(PID::PHOTON);
+
+        addProjection(photons, "Photons");
+
+        PromptFinalState prompt_photons(photons);
+        prompt_photons.acceptMuonDecays(true);
+        prompt_photons.acceptTauDecays(true);
         
         PromptFinalState prompt_leptons(charged_leptons);
         prompt_leptons.acceptMuonDecays(true);
         prompt_leptons.acceptTauDecays(true);
-        
-        PromptFinalState prompt_photons(photons);
-        prompt_photons.acceptMuonDecays(true);
-        prompt_photons.acceptTauDecays(true);
         
         // useDecayPhotons=true allows for photons with tau ancestor,
         // photons from hadrons are vetoed by the PromptFinalState;
@@ -99,16 +111,6 @@ namespace Rivet {
           dressed_leptons = DressedLeptons(photons, charged_leptons, _lepConeSize, 
                             lepton_cut, /*cluster*/ true, /*useDecayPhotons*/ true);
         addProjection(dressed_leptons, "DressedLeptons");
-        
-        // Photons
-        if (_usePromptFinalStates) {
-          // We remove the photons used up for lepton dressing in this case
-          VetoedFinalState vetoed_prompt_photons(prompt_photons);
-          vetoed_prompt_photons.addVetoOnThisFinalState(dressed_leptons);
-          addProjection(vetoed_prompt_photons, "Photons");
-        }
-        else
-          addProjection(photons, "Photons");
         
         // Jets
         VetoedFinalState fsForJets(fs);
@@ -146,7 +148,7 @@ namespace Rivet {
         _leptons.clear();
         _photons.clear();
         _neutrinos.clear();
-        
+
         // Get analysis objects from projections
         Cut jet_cut    = (Cuts::abseta < _jetMaxEta)    and (Cuts::pT > _jetMinPt*GeV);
         Cut fatjet_cut = (Cuts::abseta < _fatJetMaxEta) and (Cuts::pT > _fatJetMinPt*GeV);
@@ -163,9 +165,41 @@ namespace Rivet {
           }
         }
 
+        // Photons
+        Particles fsparticles = applyProjection<FinalState>(event,"FS").particles();
+
+        for ( auto & photon : applyProjection<FinalState>(event, "Photons").particlesByPt() ) {
+
+            if (photon.pt() < _phoMinPt)
+                continue;
+
+            if (abs(photon.eta()) > _phoMaxEta)
+                continue;
+
+            double photonptsum = 0;
+
+            for (auto &fsparticle : fsparticles) {
+
+                if (photon == fsparticle) 
+                    continue;
+
+                if (deltaR(fsparticle, photon) > _phoIsoConeSize) 
+                    continue;
+
+                photonptsum += fsparticle.pt();
+            }
+
+            if (photonptsum/photon.pt() > _phoMaxRelIso)
+                continue;
+
+            _photons.push_back(photon);
+
+        }
+
+        std::cout << "_photons.size() = " << _photons.size() << std::endl;
+
         _jets      = applyProjection<FastJets>(event, "Jets").jetsByPt(jet_cut);
         _fatjets   = applyProjection<FastJets>(event, "FatJets").jetsByPt(fatjet_cut);
-        _photons   = applyProjection<FinalState>(event, "Photons").particlesByPt();
         _neutrinos = applyProjection<FinalState>(event, "Neutrinos").particlesByPt();
         _met       = applyProjection<MissingMomentum>(event, "MET").missingMomentum().p3();
       };

@@ -3,7 +3,7 @@ import FWCore.ParameterSet.Config as cms
 particleLevel = cms.EDProducer("ParticleLevelProducer",
     src = cms.InputTag("genParticles2HepMC:unsmeared"),
     
-    usePromptFinalStates = cms.bool(True), # for leptons, photons, neutrinos
+    usePromptFinalStates = cms.bool(True), # for leptons and neutrinos
     excludePromptLeptonsFromJetClustering = cms.bool(True),
     excludeNeutrinosFromJetClustering = cms.bool(True),
     
@@ -21,4 +21,9 @@ particleLevel = cms.EDProducer("ParticleLevelProducer",
     fatJetConeSize = cms.double(0.8),
     fatJetMinPt    = cms.double(200.),
     fatJetMaxEta   = cms.double(2.4),
+
+    phoIsoConeSize = cms.double(0.4),
+    phoRelIsoMax = cms.double(0.5),
+    phoMinPt = cms.double(10),
+    phoMaxEta = cms.double(2.5),
 )
