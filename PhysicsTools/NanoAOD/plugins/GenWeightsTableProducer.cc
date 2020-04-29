@@ -355,15 +355,18 @@ class GenWeightsTableProducer : public edm::global::EDProducer<edm::StreamCache<
                 std::vector<PDFSetWeights>  pdfSetWeightIDs;
                 std::vector<std::string>    lheReweighingIDs;
                 
-                std::regex weightgroupmg26x("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s+combine=\"(.*)\"\\s*>");
+                std::regex weightgroupmg26x("<weightgroup\\s+combine=\"(.*)\"\\s+(?:name|type)=\"(.*)\"\\s*>");
+                //                std::regex weightgroupmg26x("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s+combine=\"(.*)\"\\s*>");
                 std::regex weightgroup("<weightgroup\\s+combine=\"(.*)\"\\s+(?:name|type)=\"(.*)\"\\s*>");
                 std::regex weightgroupRwgt("<weightgroup\\s+(?:name|type)=\"(.*)\"\\s*>");
                 std::regex endweightgroup("</weightgroup>");
-                std::regex scalewmg26x("<weight\\s+(?:.*\\s+)?id=\"(\\d+)\"\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:[mM][uU][rR]|renscfact)=\"(\\S+)\"\\s+(?:[mM][uU][Ff]|facscfact)=\"(\\S+)\")(\\s+.*)?</weight>");
+                //                std::regex scalewmg26x("<weight\\s+(?:.*\\s+)?id=\"(\\d+)\"\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:[mM][uU][rR]|renscfact)=\"(\\S+)\"\\s+(?:[mM][uU][Ff]|facscfact)=\"(\\S+)\")(\\s+.*)?</weight>");
+                std::regex scalewmg26x("<weight\\s+(?:.*\\s+)?((?:[mM][uU][fF]|facscfact)=\"(\\S+)\"\\s+(?:[mM][uU][Rr]|renscfact)=\"(\\S+)\")\\s*PDF=\"(\\d+)\"\\s*?id=\"(\\d+)\">(\\s+.*)?</weight>");
                 std::regex scalew("<weight\\s+(?:.*\\s+)?id=\"(\\d+)\">\\s*(?:lhapdf=\\d+|dyn=\\s*-?\\d+)?\\s*((?:mu[rR]|renscfact)=(\\S+)\\s+(?:mu[Ff]|facscfact)=(\\S+)(\\s+.*)?)</weight>");
                 std::regex pdfw("<weight\\s+id=\"(\\d+)\">\\s*(?:PDF set|lhapdf|PDF|pdfset)\\s*=\\s*(\\d+)\\s*(?:\\s.*)?</weight>");
                 std::regex pdfwOld("<weight\\s+(?:.*\\s+)?id=\"(\\d+)\">\\s*Member \\s*(\\d+)\\s*(?:.*)</weight>");
-                std::regex pdfwmg26x("<weight\\s+id=\"(\\d+)\"\\s*MUR=\"(?:\\S+)\"\\s*MUF=\"(?:\\S+)\"\\s*(?:PDF set|lhapdf|PDF|pdfset)\\s*=\\s*\"(\\d+)\"\\s*>\\s*(?:PDF=(\\d+)\\s*MemberID=(\\d+))?\\s*(?:\\s.*)?</weight>");
+                //                std::regex pdfwmg26x("<weight\\s+id=\"(\\d+)\"\\s*MUR=\"(?:\\S+)\"\\s*MUF=\"(?:\\S+)\"\\s*(?:PDF set|lhapdf|PDF|pdfset)\\s*=\\s*\"(\\d+)\"\\s*>\\s*(?:PDF=(\\d+)\\s*MemberID=(\\d+))?\\s*(?:\\s.*)?</weight>");
+                std::regex pdfwmg26x("<weight\\s+(?:.*\\s+)?((?:[mM][uU][fF]|facscfact)=\"(\\S+)\"\\s+(?:[mM][uU][Rr]|renscfact)=\"(\\S+)\")\\s*PDF=\"(\\d+)\"\\s*?id=\"(\\d+)\">(\\s+.*)?</weight>");
                 std::regex rwgt("<weight\\s+id=\"(.+)\">(.+)?(</weight>)?");
                 std::smatch groups;
                 for (auto iter=lheInfo->headers_begin(), end = lheInfo->headers_end(); iter != end; ++iter) {
@@ -385,16 +388,16 @@ class GenWeightsTableProducer : public edm::global::EDProducer<edm::StreamCache<
                     for (unsigned int iLine = 0, nLines = lines.size(); iLine < nLines; ++iLine) {
                         if (lheDebug) std::cout << lines[iLine];
                         if (std::regex_search(lines[iLine], groups, ismg26x ? weightgroupmg26x : weightgroup) ) {
-                            std::string groupname = groups.str(2);
-                            if (ismg26x) groupname = groups.str(1);
+                            std::string groupname = groups.str(1);
+                            if (ismg26x) groupname = groups.str(2);
                             if (lheDebug) std::cout << ">>> Looks like the beginning of a weight group for '" << groupname << "'" << std::endl;
                             if (groupname.find("scale_variation") == 0 || groupname == "Central scale variation") {
                                 if (lheDebug) std::cout << ">>> Looks like scale variation for theory uncertainties" << std::endl;
                                 for ( ++iLine; iLine < nLines; ++iLine) {
                                     if (lheDebug) std::cout << "    " << lines[iLine];
                                     if (std::regex_search(lines[iLine], groups, ismg26x ? scalewmg26x : scalew)) {
-                                        if (lheDebug) std::cout << "    >>> Scale weight " << groups[1].str() << " for " << groups[3].str() << " , " << groups[4].str() << " , " << groups[5].str() << std::endl;
-                                        scaleVariationIDs.emplace_back(groups.str(1), groups.str(2), groups.str(3), groups.str(4));
+                                        if (lheDebug) std::cout << "    >>> Scale weight " << groups[5].str() << " for " << groups[3].str() << " , " << groups[4].str() << " , " << groups[5].str() << std::endl;
+                                        scaleVariationIDs.emplace_back(groups.str(5), groups.str(2), groups.str(3), groups.str(4));
                                     } else if (std::regex_search(lines[iLine], endweightgroup)) {
                                         if (lheDebug) std::cout << ">>> Looks like the end of a weight group" << std::endl;
                                         if (!missed_weightgroup){
@@ -471,14 +474,15 @@ class GenWeightsTableProducer : public edm::global::EDProducer<edm::StreamCache<
                                                 member = std::stoi(groups.str(4));
                                              }
                                         }
-                                        unsigned int lhaID = member+firstLhaID;
+                                        //                                        unsigned int lhaID = member+firstLhaID;
+                                        unsigned int lhaID =  std::stoi(groups.str(4));
                                         if (lheDebug) std::cout << "    >>> PDF weight " << groups.str(1) << " for " << member << " = " << lhaID << std::endl;
                                         //if (member == 0) continue; // let's keep also the central value for now
                                         if (first) {
-                                            pdfSetWeightIDs.emplace_back(groups.str(1),lhaID);
+                                            pdfSetWeightIDs.emplace_back(groups.str(5),lhaID);
                                             first = false;
                                         } else {
-                                            pdfSetWeightIDs.back().add(groups.str(1),lhaID);
+                                            pdfSetWeightIDs.back().add(groups.str(5),lhaID);
                                         }
                                     } else if (std::regex_search(lines[iLine], endweightgroup)) {
                                         if (lheDebug) std::cout << ">>> Looks like the end of a weight group" << std::endl;
